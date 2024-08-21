@@ -7,9 +7,17 @@ position: u32,
 readPosition: u32,
 ch: u8,
 allocator: std.mem.Allocator,
+/// The allocator used for the tokens.
+token_allocator: std.mem.Allocator,
 
 /// Lexer allocates space on the heap for input and then copies it to that. So input does not need to presist.
+/// The tokens are allocated using the same allocator.
 pub fn init(allocator: std.mem.Allocator, input: []u8) std.mem.Allocator.Error!Self {
+    return initTokenAlloc(allocator, allocator, input);
+}
+
+/// Create a Lexer using two seperate allocators for the token and itself
+pub fn initTokenAlloc(allocator: std.mem.Allocator, token_allocator: std.mem.Allocator, input: []u8) std.mem.Allocator.Error!Self {
     // Make a copy of input in our own managed memory, so that we own the input.
     const allocatedInput = try allocator.alloc(u8, input.len);
     std.mem.copyForwards(u8, allocatedInput, input);
@@ -20,6 +28,7 @@ pub fn init(allocator: std.mem.Allocator, input: []u8) std.mem.Allocator.Error!S
         .position = 0,
         .ch = 0,
         .allocator = allocator,
+        .token_allocator = token_allocator,
     };
     l.readChar();
     return l;
@@ -70,11 +79,11 @@ fn peekChar(self: *Self) u8 {
 
 /// Allocates a new token using the allocator from self.
 fn newToken(self: *Self, token_type: Token.TokenType, ch: u8) std.mem.Allocator.Error!Token {
-    return Token.fromCharacter(self.allocator, token_type, ch);
+    return Token.fromCharacter(self.token_allocator, token_type, ch);
 }
 
 fn newTokenStr(self: *Self, token_type: TokenType, literal: []const u8) std.mem.Allocator.Error!Token {
-    return Token.fromString(self.allocator, token_type, literal);
+    return Token.fromString(self.token_allocator, token_type, literal);
 }
 
 fn isDigit(ch: u8) bool {
@@ -106,6 +115,20 @@ test "test memory" {
     var input = "1".*;
     var lexer = try Self.init(testing.allocator, &input);
     defer lexer.deinit();
+}
+
+test "different allocators for tokens and lexer" {
+    var input = "33".*;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var lexer = try Self.initTokenAlloc(testing.allocator, allocator, &input);
+    defer lexer.deinit();
+
+    const tok = try lexer.nextToken();
+    tok.deinit();
+    try testing.expect(!gpa.detectLeaks());
 }
 
 test "test tokens" {

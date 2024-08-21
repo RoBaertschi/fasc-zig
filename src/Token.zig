@@ -55,6 +55,5 @@ pub fn fromString(allocator: std.mem.Allocator, token_type: TokenType, literal: 
 }
 
 pub fn deinit(self: Self) void {
-    std.debug.print("{s}", .{self.literal});
     self.allocator.free(self.literal);
 }
