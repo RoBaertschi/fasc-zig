@@ -9,6 +9,12 @@ pub const TokenType = enum {
     ident,
     int,
 
+    // Operators
+    plus, // +
+    minus, // -
+    slash, // /
+    asterisk, // *
+
     // Keywords
     function,
 };

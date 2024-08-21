@@ -41,13 +41,22 @@ pub fn deinit(self: Self) void {
 pub fn nextToken(self: *Self) std.mem.Allocator.Error!Token {
     var tok: Token = undefined;
 
+    self.skipWhitespace();
+
     switch (self.ch) {
         0 => {
             tok = try self.newTokenStr(TokenType.eof, "");
         },
+        '-' => tok = try self.newToken(TokenType.minus, self.ch),
+        '+' => tok = try self.newToken(TokenType.plus, self.ch),
+        '*' => tok = try self.newToken(TokenType.asterisk, self.ch),
+        '/' => tok = try self.newToken(TokenType.slash, self.ch),
         else => {
             if (isDigit(self.ch)) {
+                // We return because we already consumed the char
                 return self.newTokenStr(TokenType.int, self.readNumber());
+            } else if (isLetter(self.ch)) {
+                return self.newTokenStr(TokenType.ident, self.readIdentifier());
             }
 
             tok = try self.newToken(TokenType.illegal, self.ch);
@@ -90,19 +99,31 @@ fn isDigit(ch: u8) bool {
     return '0' <= ch and ch <= '9';
 }
 
+fn isLetter(ch: u8) bool {
+    return ('a' <= ch and ch <= 'z') or ('a' <= ch and ch <= 'z') or ch == '_';
+}
+
 fn isWhitespace(ch: u8) bool {
     return ch == ' ' or ch == '\t' or ch == '\r' or ch == '\n';
 }
 
 fn skipWhitespace(self: *Self) void {
     while (isWhitespace(self.ch)) {
-        readChar();
+        self.readChar();
     }
 }
 
 fn readNumber(self: *Self) []u8 {
     const pos = self.position;
     while (isDigit(self.ch)) {
+        self.readChar();
+    }
+    return self.input[pos..self.position];
+}
+
+fn readIdentifier(self: *Self) []u8 {
+    const pos = self.position;
+    while (isLetter(self.ch)) {
         self.readChar();
     }
     return self.input[pos..self.position];
@@ -132,7 +153,10 @@ test "different allocators for tokens and lexer" {
 }
 
 test "test tokens" {
-    var input = "12".*;
+    var input =
+        \\12 + 12
+        \\hello + 2
+    .*;
 
     const Test = struct {
         expectedType: TokenType,
@@ -141,6 +165,11 @@ test "test tokens" {
 
     const tests = [_]Test{
         .{ .expectedType = TokenType.int, .expectedLiteral = "12" },
+        .{ .expectedType = TokenType.plus, .expectedLiteral = "+" },
+        .{ .expectedType = TokenType.int, .expectedLiteral = "12" },
+        .{ .expectedType = TokenType.ident, .expectedLiteral = "hello" },
+        .{ .expectedType = TokenType.plus, .expectedLiteral = "+" },
+        .{ .expectedType = TokenType.int, .expectedLiteral = "2" },
         .{ .expectedType = TokenType.eof, .expectedLiteral = "" },
     };
     var lexer = try Self.init(testing.allocator, &input);
@@ -152,8 +181,8 @@ test "test tokens" {
         const tok = try lexer.nextToken();
         defer tok.deinit();
 
-        try testing.expectEqual(tok.type, t.expectedType);
-        try testing.expectEqualStrings(tok.literal, t.expectedLiteral);
+        try testing.expectEqual(t.expectedType, tok.type);
+        try testing.expectEqualStrings(t.expectedLiteral, tok.literal);
     }
 }
 
