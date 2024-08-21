@@ -6,7 +6,11 @@ const types = llvm.types;
 const core = llvm.core;
 
 pub fn main() !void {
-    var lexer: Lexer = Lexer.init("");
+    var gpa = std.heap.GeneralPurposeAllocator(.{});
+    defer gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var lexer: Lexer = Lexer.init(allocator, "");
     lexer.readChar();
 
     // _ = target.LLVMInitializeNativeTarget();
